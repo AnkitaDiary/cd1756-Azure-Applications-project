@@ -262,7 +262,7 @@ def login():
     )
 
 
-@app.route(Config.REDIRECT_PATH)
+'''@app.route(Config.REDIRECT_PATH)
 def authorized():
 
     if request.args.get('state') != session.get("state"):
@@ -294,7 +294,45 @@ def authorized():
         _save_cache(cache)
 
     return redirect(url_for('home'))
+'''
+@app.route(Config.REDIRECT_PATH)
+def authorized():
+    try:
+        if request.args.get('state') != session.get("state"):
+            return redirect(url_for("home"))
 
+        if "error" in request.args:
+            return render_template("auth_error.html", result=request.args)
+
+        if "code" in request.args:
+            cache = _load_cache()
+
+            result = _build_msal_app(cache=cache).acquire_token_by_authorization_code(
+                request.args['code'],
+                scopes=Config.SCOPE,
+                redirect_uri="https://cmswebapp123-g6ababc4dvcnapgb.centralus-01.azurewebsites.net/getAToken"
+            )
+
+            if "error" in result:
+                return render_template("auth_error.html", result=result)
+
+            session["user"] = result.get("id_token_claims")
+
+            user = User.query.filter_by(username="admin").first()
+            if user:
+                login_user(user)
+            else:
+                return "Admin user not found in database", 500
+
+            logger.info("Microsoft login successful")
+
+            _save_cache(cache)
+
+        return redirect(url_for('home'))
+
+    except Exception as e:
+        return f"Microsoft login failed: {str(e)}"
+        
 
 @app.route('/logout')
 def logout():
